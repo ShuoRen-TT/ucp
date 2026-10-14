@@ -152,8 +152,8 @@ These Checkout JWS algorithms do not add P-521 to the UCP HTTP Message
 Signatures algorithm table or change its universal `ES256` implementation
 baseline. If an HTTP Message Signature references a P-521 key that the HTTP
 verifier does not support, that candidate signature fails with
-`algorithm_unsupported`; the verifier **MUST NOT** reject the whole key set and
-tries other candidates, if present, under the existing
+`algorithm_unsupported`; the verifier **MUST NOT** reject the whole key set.
+It tries other candidate signatures, if present, under the existing
 [HTTP signature rules](../../signatures.md#signature-algorithms).
 
 * **Algorithm:** per AP2's Checkout JWT signing rule — AP2 v0.2 requires
@@ -168,15 +168,13 @@ See [Message Signatures](../../signatures.md) for key format and rotation.
 
 When verifying `merchant_authorization`, a verifier **MUST** ensure that the
 protected JWS `alg` is permitted by its independently configured algorithm
-policy and matches the selected key's `kty` and `crv` according to the table
-above. This binding follows
+policy. It **MUST** always enforce the table's algorithm-to-`kty`/`crv`
+binding, whether or not the JWK contains `alg`. This binding follows
 [RFC 8725 Section 3.1](https://datatracker.ietf.org/doc/html/rfc8725#section-3.1).
 Businesses **SHOULD** include `alg` in JWKs published for Checkout signing.
-When present, the JWK `alg` **MUST** match the protected JWS `alg`; a mismatch
-makes the signature invalid. When the JWK `alg` is absent, the verifier uses
-the table's `kty`/`crv` mapping to enforce the same binding. Its absence alone
-does not invalidate the signature. The protected JWS header's `alg` remains
-required.
+When present, the JWK `alg` **MUST** also match the protected JWS `alg`; a
+mismatch makes the signature invalid. A missing JWK `alg` alone does not
+invalidate the signature. The protected JWS header's `alg` remains required.
 
 The verification flows below use this binding check. A failed assertion
 terminates verification without accepting the signature:
@@ -218,10 +216,11 @@ signing keys:
 > Security & Privacy considerations state an entropy rule satisfied by any
 > algorithm given sufficient payload entropy.
 > [AP2 #268](https://github.com/google-agentic-commerce/AP2/issues/268)
-> tracks converging on the entropy formulation. Follow AP2 for the
-> authoritative rule; under the entropy reading a UCP Checkout JWT may be
-> signed with any algorithm (including Ed25519), letting one key serve both
-> AP2 mandate signing and Web Bot Auth.
+> tracks converging on the entropy formulation. For this extension's AP2 v0.2
+> Checkout JWS verification, the table above remains normative; this note does
+> not permit additional algorithms such as Ed25519. Adopting a future AP2
+> entropy-based rule would require updating this extension's algorithm table
+> and verification examples accordingly.
 
 ### Business Authorization
 
@@ -263,6 +262,11 @@ transmitted separately (as the checkout body itself).
 The signature **MUST** cover both the JWS header and the checkout payload. This
 prevents algorithm substitution attacks where an attacker modifies the `alg`
 claim without invalidating the signature.
+
+ECDSA JWS signatures use fixed-width, unsigned big-endian `R || S`, not
+ASN.1 DER: 64 bytes for `ES256`, 96 for `ES384`, and 132 for `ES512`, before
+base64url encoding
+([RFC 7518 Section 3.4](https://datatracker.ietf.org/doc/html/rfc7518#section-3.4)).
 
 ```text
 sign_checkout(checkout, private_key, kid, alg="ES256"):
